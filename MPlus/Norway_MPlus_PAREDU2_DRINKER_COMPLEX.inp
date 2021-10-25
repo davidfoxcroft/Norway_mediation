@@ -1,0 +1,202 @@
+TITLE: To be used with R-code for bootstrapping WLSMV/ML.
+
+DATA: FILE = "Mplus_Norway.dat";
+
+VARIABLE: 
+NAMES = NYIDNR SCHNo GENDER AGEYRS AGE3gr PAREDU2 PAREDU3 RPAREDU2 RPAREDU3 margSEP
+     DRINKER DRINKkon DRUNK DRUNKkon PARTYkon HOMEkon ALCpeers KNOW LOVE ALCaccep
+     LAX MUMdrunk DADdrunk AGE2gr; 
+MISSING=.;
+
+USEVAR = GENDER AGE2gr PAREDU2 KNOW LOVE ALCaccep LAX ALCpeers MUMdrunk 
+         DADdrunk DRINKER; ! confounders, exposure, all mediators, and outcome
+CATEGORICAL = DRINKER; ! LAX ALCpeers; ! binary outcome and the ordinal mediators
+CLUSTER =  SCHNo;
+
+ANALYSIS:
+ESTIMATOR = WLSMV;
+PARAMETERIZATION = THETA;  ! need this when using WLSMV to ensure correct scaling
+! If wish to use ML (which ONLY applies to ALL CONTINUOUS mediators),
+! use these two lines instead:
+!  ESTIMATOR = ML;
+!  LINK = PROBIT;
+TYPE = COMPLEX; 
+
+
+MODEL:
+DRINKER ON PAREDU2 (gamma)
+	 GENDER (delta1)
+	 AGE2gr (delta2)
+	 KNOW (beta1)
+	 LOVE (beta2)
+	 ALCaccep (beta3)
+           LAX (beta4)
+	 ALCpeers (beta5)
+	 MUMdrunk (beta6)
+	 DADdrunk (beta7);
+
+[DRINKER$1] (ytau); ! outcome threshold
+DRINKER@1; ! residual outcome variance. REMOVE if using ML.
+
+KNOW ON PAREDU2 (alpha1)
+        GENDER (lambda11)
+        AGE2gr (lambda12);
+
+LOVE ON PAREDU2 (alpha2) 
+        GENDER  (lambda21)
+        AGE2gr  (lambda22);
+
+ALCaccep ON PAREDU2 (alpha3)
+         GENDER (lambda31)
+         AGE2gr (lambda32);
+
+LAX ON PAREDU2 (alpha4)
+       GENDER (lambda41)
+       AGE2gr  (lambda42);
+
+ALCpeers ON PAREDU2 (alpha5) 
+            GENDER (lambda51) 
+            AGE2gr (lambda52); 
+
+MUMdrunk ON PAREDU2 (alpha6) 
+            GENDER (lambda61)
+            AGE2gr (lambda62); 
+
+DADdrunk ON PAREDU2 (alpha7)
+            GENDER (lambda71) 
+            AGE2gr (lambda72); 
+
+[KNOW] (m1mu); ! intercepts of continuous mediators
+[LOVE] (m2mu);
+[ALCaccep] (m3mu);
+[LAX] (m4mu);
+[ALCpeers] (m5mu);
+[MUMdrunk] (m6mu);
+[Daddrunk] (m7mu);
+
+KNOW (var1); ! residual variances of continuous mediators
+LOVE (var2);
+ALCaccep (var3);
+LAX (var4);
+ALCpeers (var5);
+MUMdrunk (var6);
+DADdrunk (var7);
+
+KNOW WITH LOVE (rho12);  
+KNOW WITH ALCaccep (rho13); 
+KNOW WITH LAX (rho14);  
+KNOW WITH ALCpeers (rho15); 
+KNOW WITH MUMdrunk (rho16);  
+KNOW WITH DADdrunk (rho17);
+
+LOVE WITH ALCaccep (rho23);   
+LOVE WITH LAX (rho24); 
+LOVE WITH ALCpeers (rho25);  
+LOVE WITH MUMdrunk (rho26);   
+LOVE WITH DADdrunk (rho27);  
+
+ALCaccep WITH LAX (rho34);  
+ALCaccep WITH ALCpeers (rho35);   
+ALCaccep WITH MUMdrunk (rho36); 
+ALCaccep WITH DADdrunk (rho37);    
+
+LAX WITH ALCpeers (rho45); 
+LAX WITH MUMdrunk (rho46); 
+LAX WITH DADdrunk (rho47); 
+
+ALCpeers WITH MUMdrunk (rho56); 
+ALCpeers WITH DADdrunk (rho57); 
+
+MUMdrunk WITH DADdrunk (rho67);
+
+MODEL CONSTRAINT:
+NEW(constant
+    z1.coef
+    z2.coef
+    x.coef
+    xp.coef
+    scale);
+! Declare the new parameters from equation (6), including ! the constant term,
+! coefficients of the confounders z1
+! and z2,
+! coefficient of exposure condition x, ! coefficient of exposure condition x', ! and scale parameter.
+
+
+constant = (- ytau +
+     beta1 *  m1mu + ! one of these lines for each continuous mediator
+     beta2 *  m2mu +
+     beta3 *  m3mu +
+     beta4 *  m4mu +
+     beta5 *  m5mu +
+     beta6 *  m6mu +
+     beta7 *  m7mu
+     ) * 1000;
+
+z1.coef =  (
+       beta1 *  lambda11 + ! one of these lines per mediator
+       beta2 *  lambda21 +
+       beta3 *  lambda31 +
+       beta4 *  lambda41 +
+       beta5 *  lambda51 +
+       beta6 *  lambda61 +
+       beta7 *  lambda71
+       ) * 1000;
+
+z2.coef =  (
+       beta1 *  lambda12 + ! one of these lines per mediator
+       beta2 *  lambda22 +
+       beta3 *  lambda32 +
+       beta4 *  lambda42 +
+       beta5 *  lambda52 +
+       beta6 *  lambda62 +
+       beta7 *  lambda72
+       ) * 1000;
+
+x.coef = gamma * 1000;
+
+xp.coef =  (
+       beta1 *  alpha1 + ! one of these lines per mediator
+       beta2 *  alpha2 +
+       beta3 *  alpha3 +
+       beta4 *  alpha4 +
+       beta5 *  alpha5 +
+       beta6 *  alpha6 +
+       beta7 *  alpha7
+       ) * 1000;
+
+scale = ( sqrt(
+         beta1 *  beta1 *  var1 + ! one of these lines per continuous mediator
+         beta2 *  beta2 *  var2 +
+         beta3 *  beta3 *  var3 +
+         beta4 *  beta4 *  var4 +
+         beta5 *  beta5 *  var5 +
+         beta6 *  beta6 *  var6 +
+         beta7 *  beta7 *  var7 +
+        !       beta4* beta4+ # one of these lines per ordinal mediator
+        !       beta4* beta4+
+        2 *  beta1 *  beta2 *  rho12 + ! one of these lines per pair of mediators
+        2 *  beta1 *  beta3 *  rho13 +
+        2 *  beta1 *  beta4 *  rho14 +
+        2 *  beta1 *  beta5 *  rho15 +
+        2 *  beta1 *  beta6 *  rho16 +
+        2 *  beta1 *  beta7 *  rho17 +
+        2 *  beta2 *  beta3 *  rho23 +
+        2 *  beta2 *  beta4 *  rho24 +
+        2 *  beta2 *  beta5 *  rho25 +
+        2 *  beta2 *  beta6 *  rho26 +
+        2 *  beta2 *  beta7 *  rho27 +
+        2 *  beta3 *  beta4 *  rho34 +
+        2 *  beta3 *  beta5 *  rho35 +
+        2 *  beta3 *  beta6 *  rho36 +
+        2 *  beta3 *  beta7 *  rho37 +
+        2 *  beta4 *  beta5 *  rho45 +
+        2 *  beta4 *  beta6 *  rho46 +
+        2 *  beta4 *  beta7 *  rho47 +
+        2 *  beta5 *  beta6 *  rho56 +
+        2 *  beta5 *  beta7 *  rho57 +
+        2 *  beta6 *  beta7 *  rho67 +
+        1                  ! Please be sure to include this number 1
+       )
+      ) * 1000 ;
+
+
