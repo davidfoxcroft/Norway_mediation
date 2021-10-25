@@ -3,6 +3,7 @@
 .Rhistory
 .Rdata
 .Ruserdata
+*.Rproj
 *.rds
 *.RDS
 *.html
